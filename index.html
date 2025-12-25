@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>哈吉米捕捉挑战 🐱</title>
+    <style>
+        /* 全局重置 & 基础样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            touch-action: manipulation; /* 优化触摸体验，防止双击缩放 */
+        }
+
+        /* 背景层 */
+        .bg-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background: url("bg.jpg") no-repeat center center;
+            background-size: cover;
+        }
+
+        /* 背景遮罩层 */
+        .bg-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            background-color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* 核心内容层 */
+        .content-wrapper {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        /* 提示信息卡片 - 开始后隐藏 */
+        .info-card {
+            display: none; /* 默认隐藏，仅在引导层显示时无需展示 */
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 10px 14px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            color: #333;
+            font-size: 13px;
+            line-height: 1.5;
+            max-width: 90%;
+            text-align: center;
+            z-index: 100;
+        }
+
+        .info-card strong {
+            color: #e64398;
+            font-size: 15px;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        /* 新增：实时分数显示（狂飙时展示） */
+        .real-time-score {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #ffd700;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 100;
+            display: none;
+            touch-action: manipulation;
+        }
+
+        /* 道具选择栏 - 底部固定便于拇指操作 */
+        .prop-toolbar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 12px 10px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            gap: 15px;
+            z-index: 100;
+            width: 90%;
+            max-width: 400px;
+            justify-content: space-around;
+        }
+
+        .prop-btn {
+            padding: 12px 0;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            background-color: #f8e197;
+            color: #6d4c41;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            flex: 1;
+            min-width: 80px;
+            touch-action: manipulation;
+        }
+
+        .prop-btn.active {
+            background-color: #ffd700;
+            box-shadow: 0 0 0 2px #daa520;
+            color: #8b4513;
+        }
+
+        .prop-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 哈吉米容器 - 自适应尺寸（通过JS控制） */
+        #hajimi-container {
+            position: absolute;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.1s ease;
+            z-index: 50;
+            filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.15));
+            touch-action: manipulation;
+        }
+
+        #hajimi-container:active {
+            transform: scale(1.1);
+        }
+
+        #hajimi-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 20px;
+        }
+
+        /* 道具通用样式 - 增大尺寸便于触摸 */
+        .prop {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            z-index: 20;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.1));
+            touch-action: manipulation;
+        }
+
+        .prop:active {
+            transform: scale(0.9);
+        }
+
+        /* 道具具体样式 */
+        .prop-cake {
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='40' width='80' height='40' rx='10' fill='%23f8c471'/%3E%3Ccircle cx='50' cy='30' r='20' fill='%23ec7063'/%3E%3Ccircle cx='35' cy='25' r='5' fill='%23f1948a'/%3E%3Ccircle cx='50' cy='20' r='5' fill='%23f1948a'/%3E%3Ccircle cx='65' cy='25' r='5' fill='%23f1948a'/%3E%3C/svg%3E") no-repeat center;
+            background-size: 70%;
+        }
+
+        .prop-box {
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='10' width='80' height='80' rx='5' fill='%23e0d2b8' stroke='%238b6e46' stroke-width='3'/%3E%3Crect x='20' y='20' width='60' height='10' fill='%23c9b18f'/%3E%3Crect x='20' y='40' width='60' height='10' fill='%23c9b18f'/%3E%3Crect x='20' y='60' width='60' height='10' fill='%23c9b18f'/%3E%3C/svg%3E") no-repeat center;
+            background-size: 70%;
+        }
+
+        .prop-toy {
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cline x1='50' y1='10' x2='50' y2='80' stroke='%238b4513' stroke-width='4'/%3E%3Ccircle cx='50' cy='10' r='10' fill='%23ff69b4'/%3E%3Ccircle cx='50' cy='10' r='5' fill='%23ff1493'/%3E%3C/svg%3E") no-repeat center;
+            background-size: 70%;
+        }
+
+        /* 新手引导遮罩 - 展示完整规则，开始后消失 */
+        .guide-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .guide-mask h2 {
+            font-size: 22px;
+            margin-bottom: 20px;
+            color: #ffd700;
+        }
+
+        .guide-mask .rule-list {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: left;
+            max-width: 300px;
+        }
+
+        .guide-mask .rule-list p {
+            margin: 8px 0;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .guide-mask .rule-list p span {
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        .guide-mask p.tips {
+            margin: 10px 0 20px;
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .start-btn {
+            margin-top: 10px;
+            padding: 12px 30px;
+            background-color: #ffd700;
+            color: #8b4513;
+            border: none;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .start-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 分数弹窗样式（手机端适配） */
+        .score-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.85);
+            z-index: 300;
+            display: none; /* 默认隐藏 */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .score-modal h3 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #ffd700;
+        }
+
+        .score-modal .score-value {
+            font-size: 48px;
+            font-weight: bold;
+            margin: 20px 0;
+            color: #fff;
+        }
+
+        .score-modal .score-detail {
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 30px;
+        }
+
+        .confirm-btn {
+            padding: 14px 40px;
+            background-color: #ffd700;
+            color: #8b4513;
+            border: none;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: manipulation;
+            min-width: 200px;
+        }
+
+        .confirm-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+<div class="bg-container"></div>
+<div class="bg-mask"></div>
+<div class="content-wrapper">
+    <div class="info-card">
+        <strong>哈吉米捕捉挑战 😵</strong>
+        点击哈吉米 → 狂飙模式<br>
+        🎂 蛋糕：吸引→碰撞消失+反弹<br>
+        📦 纸箱：钻进去暂停→1秒后退出<br>
+        🪀 逗猫棒：绕圈移动→5秒后消失<br>
+        <small>操作：选道具 → 点屏幕放置/移除</small>
+    </div>
+
+    <!-- 新增：实时分数显示 -->
+    <div class="real-time-score" id="realTimeScore">分数：0.0</div>
+
+    <div class="prop-toolbar">
+        <button class="prop-btn" data-type="cake">🎂 蛋糕</button>
+        <button class="prop-btn" data-type="box">📦 纸箱</button>
+        <button class="prop-btn" data-type="toy">🪀 逗猫棒</button>
+    </div>
+
+    <div id="hajimi-container">
+        <img id="hajimi-img" src="hajimi.gif" alt="哈吉米">
+        <audio id="hajimi-song" loop>
+            <source src="hajimi.mp3" type="audio/mpeg">
+        </audio>
+    </div>
+
+    <div id="prop-container"></div>
+</div>
+
+<!-- 新手引导（展示完整规则，开始后消失） -->
+<div class="guide-mask" id="guideMask">
+    <h2>哈吉米捕捉挑战 🐱</h2>
+    <div class="rule-list">
+        <p>✨ <span>基础玩法</span>：点击哈吉米开启狂飙模式</p>
+        <p>🎂 <span>蛋糕</span>：吸引哈吉米→碰撞后立即消失+反弹（+0.2分）</p>
+        <p>📦 <span>纸箱</span>：哈吉米钻进去暂停→1秒后箱子消失（+0.7分）</p>
+        <p>🪀 <span>逗猫棒</span>：哈吉米绕圈移动→放置5秒后消失（+0.5分）</p>
+        <p>⏱️ <span>时间计分</span>：狂飙模式下每秒+0.1分（紧张感拉满！）</p>
+        <p>🎮 <span>操作</span>：选道具 → 点屏幕放置/移除</p>
+        <p>🏆 <span>计分规则</span>：第二次点击哈吉米显示总分并暂停</p>
+    </div>
+    <p class="tips">开始后规则面板将自动隐藏</p>
+    <button class="start-btn" id="startBtn">开始游戏</button>
+</div>
+
+<!-- 分数弹窗 -->
+<div class="score-modal" id="scoreModal">
+    <h3>挑战结束 🎉</h3>
+    <div class="score-value" id="scoreDisplay">0.0</div>
+    <div class="score-detail">蛋糕+0.2/个 | 纸箱+0.7/个 | 逗猫棒+0.5/个 | 每秒+0.1分</div>
+    <button class="confirm-btn" id="confirmBtn">确定并重置</button>
+</div>
+
+<script>
+    // 核心变量
+    const hajimiContainer = document.getElementById('hajimi-container');
+    const hajimiSong = document.getElementById('hajimi-song');
+    const propContainer = document.getElementById('prop-container');
+    const propButtons = document.querySelectorAll('.prop-btn');
+    const guideMask = document.getElementById('guideMask');
+    const startBtn = document.getElementById('startBtn');
+    const infoCard = document.querySelector('.info-card');
+    // 分数相关变量
+    const scoreModal = document.getElementById('scoreModal');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const confirmBtn = document.getElementById('confirmBtn');
+    const realTimeScore = document.getElementById('realTimeScore'); // 新增实时分数元素
+    let score = 0; // 总分
+    let clickCount = 0; // 哈吉米点击次数
+    let isPaused = false; // 是否因分数面板暂停
+    let scoreTimer = null; // 新增：每秒加分定时器
+
+    // 哈吉米自适应尺寸配置
+    let hajimiSize = 0; // 动态存储哈吉米尺寸
+    const MIN_HAJIMI_SIZE = 80;  // 最小尺寸（px）
+    const MAX_HAJIMI_SIZE = 120; // 最大尺寸（px）
+    const SIZE_RATIO = 0.15;     // 基于屏幕宽度的比例（15%）
+
+    // 道具计分配置（便于修改）
+    const PROP_SCORE = {
+        cake: 0.2,
+        box: 0.7,
+        toy: 0.5,
+        time: 0.1 // 新增：每秒加分值
+    };
+
+    // 哈吉米移动配置 - 基础速度适配，狂飙改为80倍
+    const baseSpeed = 0.8;
+    let speedMultiplier = 1;
+    let velX = getRandomVelocity();
+    let velY = getRandomVelocity();
+    let posX = 0;
+    let posY = 0;
+    let isPlaying = false;
+
+    // 道具相关变量
+    let selectedPropType = null;
+    let props = [];
+    let attractTarget = null;
+    let isInBox = false;
+    let toyTarget = null;
+    let toyAngle = 0;
+    let boxTimeout = null;
+    let toyTimeouts = [];
+
+    // ========== 核心新增：分数计算函数（兼容时间加分） ==========
+    function addScore(type, isTime = false) {
+        const add = isTime ? PROP_SCORE.time : (PROP_SCORE[type] || 0);
+        score += add;
+        // 保留1位小数，避免浮点精度问题
+        score = Math.round(score * 10) / 10;
+        // 更新实时分数显示
+        updateRealTimeScore();
+    }
+
+    // ========== 核心新增：更新实时分数显示 ==========
+    function updateRealTimeScore() {
+        realTimeScore.textContent = `分数：${score.toFixed(1)}`;
+    }
+
+    // ========== 核心新增：启动/停止每秒加分定时器 ==========
+    function startScoreTimer() {
+        // 先清除旧定时器，避免重复创建
+        if (scoreTimer) clearInterval(scoreTimer);
+        // 每秒加0.1分
+        scoreTimer = setInterval(() => {
+            if (isPlaying && !isPaused && !isInBox) { // 狂飙中、未暂停、未进纸箱才加分
+                addScore('', true);
+            }
+        }, 1000);
+        // 显示实时分数面板
+        realTimeScore.style.display = 'block';
+        updateRealTimeScore();
+    }
+
+    function stopScoreTimer() {
+        if (scoreTimer) {
+            clearInterval(scoreTimer);
+            scoreTimer = null;
+        }
+        // 隐藏实时分数面板
+        realTimeScore.style.display = 'none';
+    }
+
+    // ========== 暂停并显示分数 ==========
+    function pauseAndShowScore() {
+        isPaused = true;
+        // 停止时间加分
+        stopScoreTimer();
+        // 暂停哈吉米移动
+        velX = 0;
+        velY = 0;
+        // 暂停音频
+        hajimiSong.pause();
+        // 更新分数显示
+        scoreDisplay.textContent = score.toFixed(1);
+        // 显示分数弹窗
+        scoreModal.style.display = 'flex';
+    }
+
+    // ========== 重置游戏状态 ==========
+    function resetGame() {
+        // 隐藏分数弹窗
+        scoreModal.style.display = 'none';
+        // 重置分数和点击次数
+        score = 0;
+        clickCount = 0;
+        isPaused = false;
+        // 停止时间加分定时器
+        stopScoreTimer();
+        // 重置哈吉米状态
+        isPlaying = false;
+        speedMultiplier = 1;
+        velX = getRandomVelocity();
+        velY = getRandomVelocity();
+        resetHajimiPos();
+        // 清空所有道具
+        props.forEach(prop => {
+            if (prop.timeoutId) clearTimeout(prop.timeoutId);
+            prop.element.remove();
+        });
+        props = [];
+        // 清空道具选中状态
+        propButtons.forEach(btn => btn.classList.remove('active'));
+        selectedPropType = null;
+        // 重置道具相关状态
+        attractTarget = null;
+        isInBox = false;
+        toyTarget = null;
+        toyAngle = 0;
+        if (boxTimeout) clearTimeout(boxTimeout);
+        toyTimeouts.forEach(id => clearTimeout(id));
+        toyTimeouts = [];
+        // 重置哈吉米样式
+        hajimiContainer.style.filter = "drop-shadow(0 6px 8px rgba(0, 0, 0, 0.15))";
+        // 重置音频
+        hajimiSong.currentTime = 0;
+        // 重置实时分数显示
+        updateRealTimeScore();
+    }
+
+    // ========== 哈吉米尺寸自适应 ==========
+    function calcHajimiSize() {
+        const screenWidth = window.innerWidth;
+        const calcSize = Math.min(
+            Math.max(screenWidth * SIZE_RATIO, MIN_HAJIMI_SIZE),
+            MAX_HAJIMI_SIZE
+        );
+        return Math.floor(calcSize);
+    }
+
+    function setHajimiSize() {
+        hajimiSize = calcHajimiSize();
+        hajimiContainer.style.width = `${hajimiSize}px`;
+        hajimiContainer.style.height = `${hajimiSize}px`;
+        resetHajimiPos();
+    }
+
+    function resetHajimiPos() {
+        posX = Math.random() * (window.innerWidth - hajimiSize);
+        posY = Math.random() * (window.innerHeight - hajimiSize);
+        hajimiContainer.style.left = `${posX}px`;
+        hajimiContainer.style.top = `${posY}px`;
+    }
+
+    // ========== 生成随机初始速度 ==========
+    function getRandomVelocity() {
+        return (Math.random() - 0.5) * 2 * baseSpeed;
+    }
+
+    // ========== 调整速度随机化频率 ==========
+    function randomizeVelocity() {
+        if (isPaused || isInBox || attractTarget || toyTarget) return;
+        const randomDeltaX = (Math.random() - 0.5) * 0.8 * speedMultiplier;
+        const randomDeltaY = (Math.random() - 0.5) * 0.8 * speedMultiplier;
+
+        velX += randomDeltaX;
+        velY += randomDeltaY;
+
+        const maxSpeed = 2.5 * speedMultiplier;
+        const minSpeed = 0.4 * speedMultiplier;
+        velX = Math.max(-maxSpeed, Math.min(maxSpeed, velX));
+        velY = Math.max(-maxSpeed, Math.min(maxSpeed, velY));
+    }
+
+    // ========== 道具选择 ==========
+    propButtons.forEach(btn => {
+        btn.addEventListener('click', handlePropSelect);
+        btn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handlePropSelect.call(btn);
+        });
+    });
+
+    function handlePropSelect() {
+        const isActive = this.classList.contains('active');
+        propButtons.forEach(b => b.classList.remove('active'));
+
+        if (isActive) {
+            selectedPropType = null;
+        } else {
+            this.classList.add('active');
+            selectedPropType = this.dataset.type;
+        }
+    }
+
+    // ========== 放置道具（加分逻辑） ==========
+    document.addEventListener('click', handlePlaceProp);
+    document.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        handlePlaceProp({
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            target: document.elementFromPoint(touch.clientX, touch.clientY)
+        });
+    });
+
+    function handlePlaceProp(e) {
+        if (isPaused) return;
+
+        const ignoreElements = [
+            hajimiContainer,
+            ...propButtons,
+            infoCard,
+            document.querySelector('.prop-toolbar'),
+            guideMask,
+            scoreModal,
+            realTimeScore
+        ];
+        if (ignoreElements.some(el => el.contains(e.target)) || !selectedPropType) return;
+
+        const prop = document.createElement('div');
+        prop.className = `prop prop-${selectedPropType}`;
+        prop.dataset.type = selectedPropType;
+        const propWidth = 80;
+        const propX = e.clientX - propWidth/2;
+        const propY = e.clientY - propWidth/2;
+        prop.style.left = `${Math.max(0, Math.min(propX, window.innerWidth - propWidth))}px`;
+        prop.style.top = `${Math.max(0, Math.min(propY, window.innerHeight - propWidth))}px`;
+
+        propContainer.appendChild(prop);
+        const propObj = {
+            element: prop,
+            type: selectedPropType,
+            x: parseInt(prop.style.left),
+            y: parseInt(prop.style.top),
+            width: propWidth,
+            height: propWidth,
+            timeoutId: null
+        };
+        props.push(propObj);
+
+        // 放置道具加分
+        addScore(selectedPropType);
+
+        if (selectedPropType === 'toy') {
+            const toyTimeout = setTimeout(() => {
+                removeProp(prop);
+            }, 5000);
+            propObj.timeoutId = toyTimeout;
+            toyTimeouts.push(toyTimeout);
+        }
+
+        prop.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeProp(prop);
+        });
+        prop.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            removeProp(prop);
+        });
+    }
+
+    // ========== 移除道具 ==========
+    function removeProp(propElement) {
+        const index = props.findIndex(p => p.element === propElement);
+        if (index > -1) {
+            const prop = props[index];
+            if (prop.type === 'cake' && attractTarget === prop) attractTarget = null;
+            if (prop.type === 'box') {
+                isInBox = false;
+                if (boxTimeout) clearTimeout(boxTimeout);
+            }
+            if (prop.type === 'toy') {
+                if (toyTarget === prop) toyTarget = null;
+                if (prop.timeoutId) {
+                    clearTimeout(prop.timeoutId);
+                    toyTimeouts = toyTimeouts.filter(id => id !== prop.timeoutId);
+                }
+            }
+            propElement.remove();
+            props.splice(index, 1);
+        }
+    }
+
+    // ========== 碰撞检测 ==========
+    function checkPropCollision() {
+        if (isPaused) return;
+
+        if (attractTarget) {
+            const hx = posX + hajimiSize/2;
+            const hy = posY + hajimiSize/2;
+            const cx = attractTarget.x + 40;
+            const cy = attractTarget.y + 40;
+            const distance = Math.hypot(hx - cx, hy - cy);
+
+            if (distance < 60) {
+                velX = -(hx - cx) / distance * 2.5 * speedMultiplier;
+                velY = -(hy - cy) / distance * 2.5 * speedMultiplier;
+                removeProp(attractTarget.element);
+                attractTarget = null;
+            }
+        }
+
+        props.forEach(prop => {
+            if (prop.type === 'box' && !isInBox) {
+                const isCollide = (
+                    posX < prop.x + prop.width &&
+                    posX + hajimiSize > prop.x &&
+                    posY < prop.y + prop.height &&
+                    posY + hajimiSize > prop.y
+                );
+                if (isCollide) {
+                    isInBox = true;
+                    posX = prop.x + (prop.width - hajimiSize)/2;
+                    posY = prop.y + (prop.height - hajimiSize)/2;
+                    velX = 0;
+                    velY = 0;
+
+                    boxTimeout = setTimeout(() => {
+                        removeProp(prop.element);
+                        isInBox = false;
+                        velX = getRandomVelocity() * speedMultiplier;
+                        velY = getRandomVelocity() * speedMultiplier;
+                    }, 1000);
+                }
+            }
+        });
+
+        props.forEach(prop => {
+            if (prop.type === 'toy' && !toyTarget) {
+                const isCollide = (
+                    posX < prop.x + prop.width &&
+                    posX + hajimiSize > prop.x &&
+                    posY < prop.y + prop.height &&
+                    posY + hajimiSize > prop.y
+                );
+                if (isCollide) {
+                    toyTarget = prop;
+                    toyAngle = 0;
+                }
+            }
+        });
+    }
+
+    // ========== 道具效果处理 ==========
+    function handlePropEffects() {
+        if (isPaused) return;
+
+        if (!attractTarget) {
+            const cakeProps = props.filter(p => p.type === 'cake');
+            if (cakeProps.length > 0) attractTarget = cakeProps[0];
+        }
+        if (attractTarget) {
+            const hx = posX + hajimiSize/2;
+            const hy = posY + hajimiSize/2;
+            const cx = attractTarget.x + 40;
+            const cy = attractTarget.y + 40;
+            const distance = Math.hypot(hx - cx, hy - cy);
+
+            velX = (cx - hx) / distance * 1.8 * speedMultiplier;
+            velY = (cy - hy) / distance * 1.8 * speedMultiplier;
+        }
+
+        if (isInBox) {
+            velX = 0;
+            velY = 0;
+        }
+
+        if (toyTarget) {
+            toyAngle += 0.1 * speedMultiplier;
+            const radius = 80 * (speedMultiplier > 1 ? 1.5 : 1);
+            const tx = toyTarget.x + 40;
+            const ty = toyTarget.y + 40;
+            posX = tx - hajimiSize/2 + Math.cos(toyAngle) * radius;
+            posY = ty - hajimiSize/2 + Math.sin(toyAngle) * radius;
+            posX = Math.max(0, Math.min(posX, window.innerWidth - hajimiSize));
+            posY = Math.max(0, Math.min(posY, window.innerHeight - hajimiSize));
+        }
+    }
+
+    // ========== 哈吉米移动 ==========
+    function move() {
+        if (!isPaused) {
+            handlePropEffects();
+            checkPropCollision();
+        }
+
+        if (!isPaused && !isInBox && !toyTarget) {
+            posX += velX;
+            posY += velY;
+
+            if (posX + hajimiSize > window.innerWidth || posX < 0) {
+                velX = -velX * (0.8 + Math.random() * 0.4);
+                posX = Math.max(0, Math.min(posX, window.innerWidth - hajimiSize));
+            }
+            if (posY + hajimiSize > window.innerHeight || posY < 0) {
+                velY = -velY * (0.8 + Math.random() * 0.4);
+                posY = Math.max(0, Math.min(posY, window.innerHeight - hajimiSize));
+            }
+        }
+
+        hajimiContainer.style.left = posX + 'px';
+        hajimiContainer.style.top = posY + 'px';
+
+        requestAnimationFrame(move);
+    }
+
+    // ========== 哈吉米点击事件（统计次数+第二次点击显分） ==========
+    hajimiContainer.addEventListener('click', toggleHajimiState);
+    hajimiContainer.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        toggleHajimiState();
+    });
+
+    function toggleHajimiState() {
+        if (isPaused) return;
+
+        clickCount++;
+
+        // 第二次点击：暂停并显示分数
+        if (clickCount === 2) {
+            pauseAndShowScore();
+            return;
+        }
+
+        // 第一次点击：正常开启/关闭狂飙模式
+        if (!isPlaying) {
+            hajimiSong.play().catch(e => alert("请先点击开始游戏按钮激活音频权限～"));
+            isPlaying = true;
+            speedMultiplier = 80;
+            velX *= 80;
+            velY *= 80;
+            hajimiContainer.style.filter = "drop-shadow(0 8px 12px rgba(230, 67, 152, 0.3))";
+            // 启动每秒加分定时器
+            startScoreTimer();
+        } else {
+            hajimiSong.pause();
+            hajimiSong.currentTime = 0;
+            isPlaying = false;
+            speedMultiplier = 1;
+            velX /= 80;
+            velY /= 80;
+            hajimiContainer.style.filter = "drop-shadow(0 6px 8px rgba(0, 0, 0, 0.15))";
+            // 停止每秒加分定时器
+            stopScoreTimer();
+        }
+    }
+
+    // ========== 确定按钮点击事件（重置游戏） ==========
+    confirmBtn.addEventListener('click', resetGame);
+    confirmBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        resetGame();
+    });
+
+    // ========== 窗口大小适配 ==========
+    window.addEventListener('resize', () => {
+        setHajimiSize();
+
+        props.forEach(prop => {
+            prop.x = Math.max(0, Math.min(prop.x, window.innerWidth - prop.width));
+            prop.y = Math.max(0, Math.min(prop.y, window.innerHeight - prop.height));
+            prop.element.style.left = `${prop.x}px`;
+            prop.element.style.top = `${prop.y}px`;
+        });
+    });
+
+    // ========== 清理定时器 ==========
+    window.addEventListener('beforeunload', () => {
+        if (boxTimeout) clearTimeout(boxTimeout);
+        toyTimeouts.forEach(id => clearTimeout(id));
+        if (scoreTimer) clearInterval(scoreTimer); // 清理时间加分定时器
+    });
+
+    // ========== 新手引导 ==========
+    startBtn.addEventListener('click', () => {
+        guideMask.style.display = 'none';
+        infoCard.style.display = 'none';
+        // 触发一次交互以获取音频权限
+        hajimiSong.play().then(() => {
+            hajimiSong.pause();
+        }).catch(e => console.log('等待用户交互后再播放音频'));
+    });
+
+    // ========== 初始化 ==========
+    setHajimiSize();
+    move();
+    setInterval(randomizeVelocity, 1500);
+</script>
+</body>
+</html>
